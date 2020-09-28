@@ -1,0 +1,6 @@
+{
+  "short_name": "Chord Solver",
+  "icons": [],
+  "start_url": ".",
+  "display": "standalone"
+}
