@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Container, InputGroup, FormControl, ListGroup } from 'react-bootstrap';
+import { Accordion, Button, Card, Container, InputGroup, FormControl, Table } from 'react-bootstrap';
 import './App.scss';
 import { parseNotes, processNotes } from './lib';
 
 function App() {
     const [input, setInput] = useState('');
-    const [variant, setVariant] = useState('');
     const [label, setLabel] = useState('');
+    const [labelColor, setLabelColor] = useState<'danger' | undefined>();
+    const [components, setComponents] = useState(<React.Fragment/>);
 
     const PLACEHOLDER = 'C E G';
 
-    const setChord = (s: string, valid: boolean) => {
-        setVariant(valid ? '' : 'danger');
+    const setLabelWrapper = (s: string, valid: boolean) => {
+        setLabelColor(valid ? undefined : 'danger');
         setLabel(s);
     };
 
@@ -19,21 +20,42 @@ function App() {
         const s = input || PLACEHOLDER;
         try {
             const notes = parseNotes(s);
-            const result = processNotes(notes);
-            setChord(result, true);
+            const [name, components] = processNotes(notes);
+            console.log(components);
+            setLabelWrapper(name, true);
+            if (components) {
+                const COMPONENTS = [
+                    "Root",
+                    "Third",
+                    "Fifth",
+                    "Seventh"
+                ];
+
+                const items = <React.Fragment>
+                    {
+                        components.map((name, i) => <tr key={i}>
+                            <td>{COMPONENTS[i]}</td>
+                            <td>{name}</td>
+                        </tr>)
+                    }
+                </React.Fragment>;
+                setComponents(items);
+            } else {
+                setComponents(<React.Fragment/>);
+            }
         } catch(e) {
-            setChord(e.message, false);
+            setLabelWrapper(e.message, false);
         }
     }, [input]);
 
     return (
         <Container id='main'>
-            <Card>
-                <Card.Header>
-                    Chord Solver
-                </Card.Header>
-                <ListGroup variant='flush'>
-                    <ListGroup.Item>
+            <Accordion>
+                <Card>
+                    <Card.Header>
+                        Chord Solver
+                    </Card.Header>
+                    <Card.Body>
                         <InputGroup>
                             <InputGroup.Prepend>
                                 <InputGroup.Text>Notes</InputGroup.Text>
@@ -44,12 +66,34 @@ function App() {
                                 onChange={e => setInput(e.target.value)}
                             />
                         </InputGroup>
-                    </ListGroup.Item>
-                    <ListGroup.Item variant={variant} id='label'>
+                    </Card.Body>
+                </Card>
+                <Card text={labelColor}>
+                    <Card.Body id="label">
                         {label}
-                    </ListGroup.Item>
-                </ListGroup>
-            </Card>
+                    </Card.Body>
+                </Card>
+                <Card>
+                    <Card.Header id="components-header">
+                        <Accordion.Toggle
+                            as={Button}
+                            variant="link"
+                            eventKey="0"
+                        >
+                            Components
+                        </Accordion.Toggle>
+                    </Card.Header>
+                    <Accordion.Collapse eventKey="0">
+                        <Card.Body>
+                            <Table id="components" size="sm">
+                                <tbody>
+                                    {components}
+                                </tbody>
+                            </Table>
+                        </Card.Body>
+                    </Accordion.Collapse>
+                </Card>
+            </Accordion>
         </Container>
     );
 }
