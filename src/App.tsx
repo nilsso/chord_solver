@@ -3,6 +3,7 @@ import { Accordion, Button, Card, Container, InputGroup, FormControl, Table } fr
 import './App.scss';
 import { parseNotes, processNotes } from './lib';
 
+/* eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types */
 function App() {
     const [input, setInput] = useState('');
     const [label, setLabel] = useState('');
@@ -21,7 +22,6 @@ function App() {
         try {
             const notes = parseNotes(s);
             const [name, components] = processNotes(notes);
-            console.log(components);
             setLabelWrapper(name, true);
             if (components) {
                 const COMPONENTS = [

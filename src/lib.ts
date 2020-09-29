@@ -1,13 +1,13 @@
 
-// Base note pitch classes
+// Base note pitch classes (and helper indices)
 const BASE_NOTES = new Map([
-    ['C', 0],
-    ['D', 2],
-    ['E', 4],
-    ['F', 5],
-    ['G', 7],
-    ['A', 9],
-    ['B', 11]
+    ['C', [ 0, 0]],
+    ['D', [ 2, 1]],
+    ['E', [ 4, 2]],
+    ['F', [ 5, 3]],
+    ['G', [ 7, 4]],
+    ['A', [ 9, 5]],
+    ['B', [11, 6]]
 ]);
 
 // Validated intervals and their names
@@ -50,11 +50,13 @@ const CHORDS = new Map([
  */
 export class Note {
     name: string;
+    letter_index: number;
     base_class: number;
     pitch_class: number;
 
-    private constructor(name: string, base_class: number, pitch_class: number) {
+    private constructor(name: string, letter_index: number, base_class: number, pitch_class: number) {
         this.name = name;
+        this.letter_index = letter_index;
         this.base_class = base_class;
         this.pitch_class = pitch_class;
     }
@@ -62,12 +64,13 @@ export class Note {
     /**
      * Parse a string as a note.
      * @param {string} unparsed_note - Unparsed note string
-     * @return {Note} - Parsed Note object
+     * @return {Note} Parsed Note object
      * @throws {SyntaxError} A note string contained an invalid note letter/accidental character
      */
     static parse(unparsed_note: string): Note {
-        let m = unparsed_note.match(/(\S)(\S*)/)!;
-        let [letter, accidentals] = [m[1], m[2]];
+        /* eslint-disable-next-line @typescript-eslint/no-non-null-assertion */
+        const m = unparsed_note.match(/(\S)(\S*)/)!;
+        const [letter, accidentals] = [m[1], m[2]];
         if (!BASE_NOTES.has(letter)) {
             throw new SyntaxError('Invalid note letter in "'+unparsed_note+'"');
         }
@@ -75,17 +78,18 @@ export class Note {
             throw new SyntaxError('Invalid accidentals in "'+unparsed_note+'"');
         }
 
-        const base_class = BASE_NOTES.get(letter)!;
+        /* eslint-disable-next-line @typescript-eslint/no-non-null-assertion */
+        const [base_class, letter_index] = BASE_NOTES.get(letter)!;
         const shift = accidentals.split('').reduce((acc, c) => acc + (c === '#' ? 1 : -1), 0);
         const pitch_class = base_class + shift;
 
-        return new Note(unparsed_note, base_class, pitch_class);
+        return new Note(unparsed_note, letter_index, base_class, pitch_class);
     }
 
     /**
      * Get distance from another note in semitones.
      * @param {Note} other - Another note
-     * @return {number} - Distance in semitones
+     * @return {number} Distance in semitones
      */
     distance(other: Note): number {
         return (other.pitch_class - this.pitch_class + 12) % 12;
@@ -95,32 +99,12 @@ export class Note {
 /**
  * Parse whitespace delimited note strings.
  * @param {string} unparsed_notes - Whitespace delimited notes
- * @return {Array<Note>} - Array of parsed notes
+ * @return {Array<Note>} Array of parsed notes
  */
 export function parseNotes(unparsed_notes: string): Array<Note> {
     return Array.from(unparsed_notes.matchAll(/(\S+)\s*/g))
-        .map(([_, unparsed_note]) => Note.parse(unparsed_note));
+        .map((m) => Note.parse(m[1]));
 }
-
-/**
- * Get intervals between pitch classes.
- * @param {Array<number} pitch_classes - Array of pitch classes
- * @return {Array<number>} Array of intervals
- */
-function intervals(pitch_classes: Array<number>): Array<number> {
-    const n = pitch_classes.length - 1;
-    let intervals = Array(n);
-    for (let i = 0; i < n; i++) {
-        const a = pitch_classes[i];
-        const b = pitch_classes[i + 1];
-        intervals[i] = (b - a + 12) % 12;
-    }
-    return intervals;
-}
-
-// Note interval helpers
-const pitchClassIntervals = (notes: Array<Note>): Array<number> => intervals(notes.map(n => n.pitch_class));
-const baseClassIntervals  = (notes: Array<Note>): Array<number> => intervals(notes.map(n => n.base_class));
 
 // Number to English ordinal
 function nth(n: number): string {
@@ -133,31 +117,65 @@ function nth(n: number): string {
     }
 }
 
+function arraysEqual<T>(a: Array<T>, b: Array<T>): boolean {
+    if (a.length !== b.length) {
+        return false;
+    }
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function inversion(notes: Array<Note>): number {
+    const indices = notes.map(n => n.letter_index);
+    const b = Array.from(Array(indices.length).keys()).map((_, k) => k * 2);
+    for (let i = 0; i < notes.length; i++) {
+        const s = indices[0];
+        const a = indices.map(i => (i - s + 7) % 7);
+        if (arraysEqual(a, b)) {
+            return i;
+        }
+        /* eslint-disable-next-line @typescript-eslint/no-non-null-assertion */
+        indices.unshift(indices.pop()!);
+    }
+    return -1;
+}
+
+function intervals(notes: Array<Note>): Array<number> {
+    const n = notes.length - 1;
+    const intervals = Array(n);
+    for (let i = 0; i < n; i++) {
+        const a = notes[i].pitch_class;
+        const b = notes[i + 1].pitch_class;
+        intervals[i] = (b - a + 12) % 12;
+    }
+    return intervals;
+}
+
 /**
  * Attempt to interpret an array notes as a chord.
  * @param {Array<Note>} notes - Array of notes
  * @return {[string, Array<string>]} Tuple of the interpreted chord name and components (root, third, etc.)
  * @throws {Error} Notes do not form a conventional chord
  */
-function chordName(notes: Array<Note>): [string, Array<string>] {
-    for (let i = 0; i < notes.length; i++) {
-        const intervals = baseClassIntervals(notes);
-        console.log(intervals);
-        if (CHORDS.has(intervals.join())) {
-            const chord_type = CHORDS.get(pitchClassIntervals(notes).join());
-            if (chord_type) {
-                const name = notes[0].name + ' ' + chord_type;
-                const components = notes.map(n => n.name);
-                if (i === 0) {
-                    return [name, components];
-                } else {
-                    return [name + ' (' + nth(i) + ' inversion)', components];
-                }
+function chordInfo(notes: Array<Note>): [string, Array<string>] {
+    const i = inversion(notes);
+    if (i >= 0) {
+        const tail: Array<Note> = notes.splice(notes.length - i, i);
+        const fixed = tail.concat(notes);
+        const chord_type = CHORDS.get(intervals(fixed).join());
+        if (chord_type) {
+            const name = fixed[0].name + ' ' + chord_type;
+            const components = fixed.map(n => n.name);
+            if (i === 0) {
+                return [name, components];
             } else {
-                throw new Error("Invalid chord");
+                return [name + ' (' + nth(i) + ' inversion)', components];
             }
         }
-        notes.unshift(notes.pop()!);
     }
     throw new Error("Invalid chord");
 }
@@ -181,14 +199,16 @@ export function processNotes(notes: Array<Note>): [string, Array<string> | undef
         case 2: {
             const a = notes[0];
             const b = notes[1];
+            /* eslint-disable-next-line @typescript-eslint/no-non-null-assertion */
             return [INTERVALS.get(a.distance(b))!, undefined];
         }
         case 3:
         case 4: {
-            return chordName(notes);
+            return chordInfo(notes);
         }
         default: {
             throw new Error('Only up to four notes (seventh chords) supported')
         }
+
     }
 }
